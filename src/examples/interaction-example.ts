@@ -26,7 +26,7 @@ async function main() {
     await browser.go("https://www.duckduckgo.com");
 
     // Get the elements on the page
-    const { elements } = browser.getCompleteData();
+    const { elements } = await browser.getCompleteData();
 
     // Find the search input
     console.log("Looking for search input...");
@@ -80,11 +80,12 @@ async function main() {
 
     // Analyze the results page
     console.log("Analyzing search results page...");
-    await browser.go(browser.getCurrentUrl());
+    const currentUrl = await browser.getCurrentUrl();
+    await browser.go(currentUrl);
 
     // Get the updated elements on the results page
     const { elements: resultsElements, pageContext } =
-      browser.getCompleteData();
+      await browser.getCompleteData();
 
     // Count the number of result links
     const resultLinks = resultsElements.filter(
@@ -105,7 +106,8 @@ async function main() {
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Get the current URL
-      console.log(`Navigated to: ${browser.getCurrentUrl()}`);
+      const finalUrl = await browser.getCurrentUrl();
+      console.log(`Navigated to: ${finalUrl}`);
     }
   } catch (error) {
     console.error("Error:", error);

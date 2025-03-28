@@ -17,11 +17,11 @@ async function detectConsentButtons() {
     await browser.go("https://www.google.com");
 
     // Get all the detected elements
-    const allElements = browser.getElements();
+    const allElements = await browser.getElements();
     console.log(`Found ${allElements.length} interactive elements in total`);
 
     // Filter for consent-related elements by checking for specific keywords in text
-    const consentRelated = browser.filterElements((element) => {
+    const consentRelated = await browser.filterElements((element) => {
       const text = element.text.toLowerCase();
       const hasConsentKeyword =
         text.includes("accept") ||

@@ -25,7 +25,8 @@ async function main() {
     await browser.go("https://liftos.io");
 
     // Get all the data
-    const { elements, textBlocks, pageContext } = browser.getCompleteData();
+    const { elements, textBlocks, pageContext } =
+      await browser.getCompleteData();
 
     console.log("Detected Elements:", elements.length);
     console.log("Text Blocks:", textBlocks.length);

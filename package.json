@@ -1,6 +1,6 @@
 {
   "name": "rabbit-browser",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Browser automation tool for detecting interactive elements on web pages",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -40,10 +40,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/RabbitAI/RabbitBrowser.git"
+    "url": "git+https://github.com/RunRabbitAI/RabbitBrowser.git"
   },
   "bugs": {
-    "url": "https://github.com/RabbitAI/RabbitBrowser/issues"
+    "url": "https://github.com/RunRabbitAI/RabbitBrowser/issues"
   },
-  "homepage": "https://github.com/RabbitAI/RabbitBrowser#readme"
+  "homepage": "https://github.com/RunRabbitAI/RabbitBrowser#readme"
 }

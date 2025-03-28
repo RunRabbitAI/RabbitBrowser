@@ -287,37 +287,37 @@ export class RabbitBrowser {
 
   /**
    * Get all detected elements
-   * @returns Array of detected elements with their properties
+   * @returns Promise resolving to an array of detected elements with their properties
    */
-  getElements(): ElementData[] {
+  async getElements(): Promise<ElementData[]> {
     return this.elements;
   }
 
   /**
    * Get all detected text blocks
-   * @returns Array of text blocks with their content
+   * @returns Promise resolving to an array of text blocks with their content
    */
-  getTextBlocks(): any[] {
+  async getTextBlocks(): Promise<any[]> {
     return this.textBlocks;
   }
 
   /**
    * Get page context information including text content
-   * @returns Page context object with text content
+   * @returns Promise resolving to page context object with text content
    */
-  getPageContext(): any {
+  async getPageContext(): Promise<any> {
     return this.pageContext;
   }
 
   /**
    * Get complete data with elements, text blocks and page context
-   * @returns Object containing elements, text blocks and page context
+   * @returns Promise resolving to object containing elements, text blocks and page context
    */
-  getCompleteData(): {
+  async getCompleteData(): Promise<{
     elements: ElementData[];
     textBlocks: any[];
     pageContext: any;
-  } {
+  }> {
     return {
       elements: this.elements,
       textBlocks: this.textBlocks,
@@ -327,9 +327,9 @@ export class RabbitBrowser {
 
   /**
    * Get element count
-   * @returns Number of detected elements
+   * @returns Promise resolving to number of detected elements
    */
-  getElementCount(): number {
+  async getElementCount(): Promise<number> {
     return this.elements.length;
   }
 
@@ -347,27 +347,29 @@ export class RabbitBrowser {
 
   /**
    * Get the current URL
-   * @returns The current URL
+   * @returns Promise resolving to the current URL
    */
-  getCurrentUrl(): string {
+  async getCurrentUrl(): Promise<string> {
     return this.currentUrl;
   }
 
   /**
    * Get elements that match certain criteria
    * @param filter Function that returns true for elements to include
-   * @returns Filtered elements
+   * @returns Promise resolving to filtered elements
    */
-  filterElements(filter: (element: ElementData) => boolean): ElementData[] {
+  async filterElements(
+    filter: (element: ElementData) => boolean
+  ): Promise<ElementData[]> {
     return this.elements.filter(filter);
   }
 
   /**
    * Find elements by text content
    * @param text Text to search for
-   * @returns Elements that contain the specified text
+   * @returns Promise resolving to elements that contain the specified text
    */
-  findElementsByText(text: string): ElementData[] {
+  async findElementsByText(text: string): Promise<ElementData[]> {
     return this.elements.filter((element) =>
       element.text.toLowerCase().includes(text.toLowerCase())
     );
@@ -376,9 +378,9 @@ export class RabbitBrowser {
   /**
    * Find elements by tag name
    * @param tagName Tag name to search for
-   * @returns Elements with the specified tag name
+   * @returns Promise resolving to elements with the specified tag name
    */
-  findElementsByTagName(tagName: string): ElementData[] {
+  async findElementsByTagName(tagName: string): Promise<ElementData[]> {
     return this.elements.filter(
       (element) => element.tagName.toLowerCase() === tagName.toLowerCase()
     );

@@ -9,6 +9,18 @@ A powerful browser automation tool for detecting and interacting with elements o
 - 📝 **Form Automation**: Fill inputs, select options, click buttons, and submit forms
 - 🌐 **CDP Support**: Connect to existing Chrome instances via Chrome DevTools Protocol
 - 📊 **Context Extraction**: Extract page context, text, and element data for analysis
+- ⏱️ **Async API**: All methods return Promises for better control flow and awaitable responses
+
+```typescript
+// All getter methods are async and return Promises
+const elements = await browser.getElements();
+const textBlocks = await browser.getTextBlocks();
+const url = await browser.getCurrentUrl(); 
+
+// Find and filter methods are also async
+const buttons = await browser.findElementsByTagName('button');
+const loginButtons = await browser.findElementsByText('login');
+```
 
 ## Installation
 
@@ -30,12 +42,13 @@ async function example() {
     await browser.go('https://example.com');
     
     // Get all the detected elements
-    const { elements, textBlocks, pageContext } = browser.getCompleteData();
+    const { elements, textBlocks, pageContext } = await browser.getCompleteData();
     
     console.log(`Detected ${elements.length} interactive elements`);
     
     // Find and interact with elements
-    const loginButton = browser.findElementsByText('login')[0];
+    const loginButtons = await browser.findElementsByText('login');
+    const loginButton = loginButtons[0];
     if (loginButton) {
       await browser.clickElement(loginButton);
     }
@@ -88,35 +101,35 @@ await browser.connectCDP({
 
 ```typescript
 // Get all detected elements
-const elements = browser.getElements();
+const elements = await browser.getElements();
 
 // Get text blocks
-const textBlocks = browser.getTextBlocks();
+const textBlocks = await browser.getTextBlocks();
 
 // Get page context
-const pageContext = browser.getPageContext();
+const pageContext = await browser.getPageContext();
 
 // Get everything at once
-const { elements, textBlocks, pageContext } = browser.getCompleteData();
+const { elements, textBlocks, pageContext } = await browser.getCompleteData();
 
 // Get element count
-const count = browser.getElementCount();
+const count = await browser.getElementCount();
 
 // Get current URL
-const url = browser.getCurrentUrl();
+const url = await browser.getCurrentUrl();
 ```
 
 ### Finding Elements
 
 ```typescript
 // Filter elements with a custom function
-const buttons = browser.filterElements(e => e.tagName === 'button');
+const buttons = await browser.filterElements(e => e.tagName === 'button');
 
 // Find elements by text content
-const loginElements = browser.findElementsByText('login');
+const loginElements = await browser.findElementsByText('login');
 
 // Find elements by tag name
-const divs = browser.findElementsByTagName('div');
+const divs = await browser.findElementsByTagName('div');
 ```
 
 ### Interacting with Elements
@@ -157,11 +170,13 @@ async function fillForm() {
     await browser.go('https://example.com/form');
     
     // Get all elements
-    const elements = browser.getElements();
+    const elements = await browser.getElements();
     
     // Find form elements
-    const nameInput = browser.findElementsByText('name')[0];
-    const emailInput = browser.findElementsByText('email')[0];
+    const nameInputs = await browser.findElementsByText('name');
+    const nameInput = nameInputs[0];
+    const emailInputs = await browser.findElementsByText('email');
+    const emailInput = emailInputs[0];
     const submitButton = elements.find(e => e.type === 'submit');
     
     // Fill form fields
@@ -171,7 +186,7 @@ async function fillForm() {
     // Submit the form
     await browser.clickElement(submitButton);
     
-    console.log(`Form submitted. Current URL: ${browser.getCurrentUrl()}`);
+    console.log(`Form submitted. Current URL: ${await browser.getCurrentUrl()}`);
   } finally {
     await browser.close();
   }
@@ -198,7 +213,7 @@ async function useCDP() {
     await browser.go('https://example.com');
     
     // Get all the data
-    const { elements, textBlocks, pageContext } = browser.getCompleteData();
+    const { elements, textBlocks, pageContext } = await browser.getCompleteData();
     
     console.log(`Detected Elements: ${elements.length}`);
     console.log(`Text Blocks: ${textBlocks.length}`);

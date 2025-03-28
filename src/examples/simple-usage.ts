@@ -10,7 +10,7 @@ async function main() {
     await rabbitBrowser.go("https://www.liftos.io");
 
     // Get the complete data
-    const completeData = rabbitBrowser.getCompleteData();
+    const completeData = await rabbitBrowser.getCompleteData();
 
     // Log the counts
     console.log(

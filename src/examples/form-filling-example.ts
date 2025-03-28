@@ -25,7 +25,7 @@ async function main() {
     await browser.go("https://www.w3schools.com/html/html_forms.asp");
 
     // Get the elements on the page
-    const { elements } = browser.getCompleteData();
+    const { elements } = await browser.getCompleteData();
 
     // Find form elements of different types
     console.log("Looking for form elements...");

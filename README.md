@@ -1,6 +1,14 @@
-# Rabbit Browser
+# RabbitBrowser
 
-A browser automation tool for detecting interactive elements on web pages, with a focus on consent dialogs.
+A powerful browser automation tool for detecting and interacting with elements on web pages. RabbitBrowser is built on top of Puppeteer and provides a simple API for element detection, highlighting, and interaction.
+
+## Features
+
+- 🔍 **Automatic Element Detection**: Detects clickable elements, form inputs, and text blocks
+- 🎨 **Visual Highlighting**: Highlights elements in the browser for easy identification
+- 📝 **Form Automation**: Fill inputs, select options, click buttons, and submit forms
+- 🌐 **CDP Support**: Connect to existing Chrome instances via Chrome DevTools Protocol
+- 📊 **Context Extraction**: Extract page context, text, and element data for analysis
 
 ## Installation
 
@@ -8,202 +16,236 @@ A browser automation tool for detecting interactive elements on web pages, with 
 npm install rabbit-browser
 ```
 
-## Usage
+## Quick Start
 
-There are two ways to use Rabbit Browser: with the default instance or by creating your own instance.
-
-### Using the default instance
-
-```javascript
-import rabbitBrowser from 'rabbit-browser';
-
-// Navigate to a page
-await rabbitBrowser.go('https://example.com');
-
-// Get all detected elements
-const elements = rabbitBrowser.getElements();
-console.log(elements);
-
-// Get page context (for AI analysis)
-const pageContext = rabbitBrowser.getPageContext();
-console.log(pageContext);
-
-// Or get everything in one call
-const completeData = rabbitBrowser.getCompleteData();
-console.log(completeData.elements);
-console.log(completeData.pageContext);
-
-// Close the browser when done
-await rabbitBrowser.close();
-```
-
-### Creating your own instance
-
-```javascript
+```typescript
 import { RabbitBrowser } from 'rabbit-browser';
 
-// Create a new instance with custom options
-const browser = new RabbitBrowser({
-  focusOnConsent: true,     // Focus on consent-related elements
-  waitTime: 5000,           // Maximum wait time in milliseconds
-  logDetails: true,         // Log details to console
-  earlyReturn: true,        // Return as soon as elements are found
-  includePageContext: true, // Collect page text context for AI
-  includeFormInputs: true,  // Include form inputs for AI automation
-});
-
-// Navigate to a page
-await browser.go('https://example.com');
-
-// Get complete data (elements and page context)
-const data = browser.getCompleteData();
-console.log(data);
-
-// Close the browser when done
-await browser.close();
-```
-
-### Simple API
-
-If you prefer a simpler API, you can use the `SimpleRabbitBrowser` class:
-
-```javascript
-import { SimpleRabbitBrowser } from 'rabbit-browser';
-
-// Create a simple browser
-const browser = new SimpleRabbitBrowser();
-
-// Navigate to a page and get data
-await browser.go('https://example.com');
-const data = browser.getCompleteData();
-console.log(data);
-
-// Close when done
-await browser.close();
-```
-
-## Optimized Data for AI
-
-RabbitBrowser is designed to produce token-efficient output suitable for use with AI services. The data is optimized to:
-
-1. Remove unnecessary attributes and metadata
-2. Simplify selectors for better readability
-3. Limit text content to what's most relevant
-4. Include only meaningful headings and paragraphs
-5. Truncate long text blocks to reduce token usage
-6. Detect form inputs with associated labels for AI automation
-
-This optimization reduces token usage when sending the data to AI services, while maintaining all the important information about the page structure and content.
-
-## Element Data
-
-The elements returned by `getElements()` have the following optimized structure:
-
-```json
-[
-  {
-    "text": "Cookies",
-    "tagName": "a",
-    "id": "cookie-link",
-    "href": "https://example.com/cookies",
-    "attributes": {
-      "href": "/cookies",
-      "target": "_blank"
-    },
-    "selector": "a.cookie-link",
-    "isClickable": true
-  },
-  {
-    "text": "Accept All",
-    "tagName": "button",
-    "id": "accept-button",
-    "attributes": {
-      "name": "accept"
-    },
-    "selector": "#accept-button",
-    "isClickable": true
-  },
-  {
-    "text": "",
-    "tagName": "input",
-    "type": "text",
-    "id": "username",
-    "isFormInput": true,
-    "label": "Username",
-    "placeholder": "Enter your username",
-    "name": "username",
-    "required": true,
-    "value": "",
-    "selector": "#username",
-    "isClickable": true
-  },
-  {
-    "text": "",
-    "tagName": "select",
-    "id": "country",
-    "isFormInput": true,
-    "label": "Country",
-    "name": "country",
-    "value": "US",
-    "options": [
-      {"value": "US", "text": "United States", "selected": true},
-      {"value": "CA", "text": "Canada", "selected": false},
-      {"value": "UK", "text": "United Kingdom", "selected": false}
-    ],
-    "selector": "#country",
-    "isClickable": true
+async function example() {
+  // Create a new instance
+  const browser = new RabbitBrowser();
+  
+  try {
+    // Navigate to a URL
+    await browser.go('https://example.com');
+    
+    // Get all the detected elements
+    const { elements, textBlocks, pageContext } = browser.getCompleteData();
+    
+    console.log(`Detected ${elements.length} interactive elements`);
+    
+    // Find and interact with elements
+    const loginButton = browser.findElementsByText('login')[0];
+    if (loginButton) {
+      await browser.clickElement(loginButton);
+    }
+    
+    // Close the browser when done
+    await browser.close();
+  } catch (error) {
+    console.error('Error:', error);
   }
-]
+}
+
+example();
 ```
 
-## Page Context Data
+## API Reference
 
-The page context returned by `getPageContext()` has the following optimized structure:
+### Creating a Browser Instance
 
-```json
-{
-  "title": "Example Website",
-  "url": "https://example.com",
-  "metaDescription": "This is the example website's meta description",
-  "headings": {
-    "h1": ["Main Heading 1"],
-    "h2": ["Subheading 1", "Subheading 2"]
-  },
-  "mainContent": [
-    "This is the first paragraph of content...",
-    "Another paragraph with more information..."
-  ],
-  "navigation": [
-    "Home", "About", "Products", "Contact"
-  ],
-  "footer": "Copyright 2023. All rights reserved."
+```typescript
+// Default options
+const browser = new RabbitBrowser();
+
+// With custom options
+const browser = new RabbitBrowser({
+  headless: false,              // Show the browser UI
+  defaultViewport: { width: 1280, height: 800 },
+  highlightAllText: true,       // Highlight text blocks
+  focusOnConsent: false,        // Special focus on consent buttons
+  waitTime: 3000,               // Time to wait for elements to appear
+  includePageContext: true,     // Include page context in results
+});
+```
+
+### Navigation and Initialization
+
+```typescript
+// Initialize the browser (called automatically by go())
+await browser.init();
+
+// Navigate to a URL
+await browser.go('https://example.com');
+
+// Connect to an existing Chrome instance via CDP
+await browser.connectCDP({
+  browserURL: 'http://127.0.0.1:9222'
+});
+```
+
+### Getting Elements and Data
+
+```typescript
+// Get all detected elements
+const elements = browser.getElements();
+
+// Get text blocks
+const textBlocks = browser.getTextBlocks();
+
+// Get page context
+const pageContext = browser.getPageContext();
+
+// Get everything at once
+const { elements, textBlocks, pageContext } = browser.getCompleteData();
+
+// Get element count
+const count = browser.getElementCount();
+
+// Get current URL
+const url = browser.getCurrentUrl();
+```
+
+### Finding Elements
+
+```typescript
+// Filter elements with a custom function
+const buttons = browser.filterElements(e => e.tagName === 'button');
+
+// Find elements by text content
+const loginElements = browser.findElementsByText('login');
+
+// Find elements by tag name
+const divs = browser.findElementsByTagName('div');
+```
+
+### Interacting with Elements
+
+```typescript
+// Click an element (by element data or index)
+await browser.clickElement(loginButton);
+// Or by index
+await browser.clickElement(0);
+
+// Fill an input
+await browser.fillInput(emailInput, 'user@example.com');
+
+// Submit a form
+await browser.submitForm(formElement);
+
+// Select an option in a dropdown
+await browser.selectOption(selectElement, 'option-value');
+
+// Take a screenshot
+await browser.takeScreenshot('screenshot.png');
+
+// Close the browser
+await browser.close();
+```
+
+## Advanced Usage Examples
+
+### Working with Forms
+
+```typescript
+import { RabbitBrowser } from 'rabbit-browser';
+
+async function fillForm() {
+  const browser = new RabbitBrowser({ headless: false });
+  
+  try {
+    await browser.go('https://example.com/form');
+    
+    // Get all elements
+    const elements = browser.getElements();
+    
+    // Find form elements
+    const nameInput = browser.findElementsByText('name')[0];
+    const emailInput = browser.findElementsByText('email')[0];
+    const submitButton = elements.find(e => e.type === 'submit');
+    
+    // Fill form fields
+    await browser.fillInput(nameInput, 'John Doe');
+    await browser.fillInput(emailInput, 'john@example.com');
+    
+    // Submit the form
+    await browser.clickElement(submitButton);
+    
+    console.log(`Form submitted. Current URL: ${browser.getCurrentUrl()}`);
+  } finally {
+    await browser.close();
+  }
 }
 ```
 
-## Form Input Detection for AI Automation
+### Connecting to an Existing Chrome Instance
 
-RabbitBrowser automatically detects form inputs and provides detailed information for AI-based form filling:
+```typescript
+import { RabbitBrowser } from 'rabbit-browser';
 
-- Text inputs, textareas, selects, and other form elements
-- Associated labels (either using the "for" attribute or parent label elements)
-- Placeholder text and name attributes
-- Current values
-- Required status
-- Available options for select elements
+async function useCDP() {
+  const browser = new RabbitBrowser({
+    preserveBrowserViewport: true,  // Use the actual browser window size
+  });
+  
+  try {
+    // Connect to an existing Chrome instance via CDP
+    await browser.connectCDP({
+      browserURL: 'http://127.0.0.1:9222',
+    });
+    
+    // Navigate to a page
+    await browser.go('https://example.com');
+    
+    // Get all the data
+    const { elements, textBlocks, pageContext } = browser.getCompleteData();
+    
+    console.log(`Detected Elements: ${elements.length}`);
+    console.log(`Text Blocks: ${textBlocks.length}`);
+  } finally {
+    // Disconnect from CDP (doesn't close Chrome)
+    await browser.close();
+  }
+}
+```
 
-This makes it easy for AI services to understand form structure and automate form filling tasks.
+## Browser Options
 
-## Additional Methods
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| headless | boolean | true | Run browser in headless mode |
+| defaultViewport | object | { width: 1280, height: 800 } | Browser viewport size |
+| highlightAllText | boolean | true | Highlight all text blocks |
+| focusOnConsent | boolean | false | Focus on detecting consent buttons |
+| logDetails | boolean | false | Log detailed operations |
+| waitTime | number | 3000 | Time to wait for elements to appear (ms) |
+| minElementsRequired | number | 1 | Minimum elements required before early return |
+| earlyReturn | boolean | true | Return early if enough elements found |
+| includePageContext | boolean | true | Include page context in results |
+| includeFormInputs | boolean | true | Include form inputs in results |
+| includeTextBlocks | boolean | true | Include text blocks in results |
+| preserveBrowserViewport | boolean | false | Use browser's actual viewport size (for CDP) |
 
-The `RabbitBrowser` class provides several additional methods:
+## Running Examples
 
-- `getElementCount()`: Get the number of detected elements
-- `getCurrentUrl()`: Get the current URL
-- `filterElements(filter)`: Filter elements based on a custom function
-- `findElementsByText(text)`: Find elements by their text content
-- `findElementsByTagName(tagName)`: Find elements by their tag name
-- `takeScreenshot(path)`: Take a screenshot of the page
-- `close()`: Close the browser
+The package includes several examples demonstrating different features:
+
+```bash
+# Simple example with element detection
+npm run example:simple
+
+# Consent button detection
+npm run example:consent
+
+# Using CDP to connect to existing Chrome
+npm run example:cdp
+
+# Interactive element example
+npm run example:interactive
+
+# Form filling example
+npm run example:form
+```
 
 ## License
 

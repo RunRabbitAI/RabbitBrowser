@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "ts-node src/index.ts",
     "prepublishOnly": "npm run build",
+    "test": "echo \"No tests yet - you can contribute some!\" && exit 0",
     "example:simple": "ts-node src/examples/simple-usage.ts",
     "example:consent": "ts-node src/examples/consent-detection.ts",
     "example:cdp": "ts-node src/examples/cdp-usage.ts",
@@ -22,7 +23,7 @@
     "interactive-elements",
     "browser-automation"
   ],
-  "author": "",
+  "author": "RabbitAI",
   "license": "MIT",
   "dependencies": {
     "puppeteer": "^24.4.0"
@@ -39,10 +40,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/rabbit-browser.git"
+    "url": "git+https://github.com/RabbitAI/RabbitBrowser.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/rabbit-browser/issues"
+    "url": "https://github.com/RabbitAI/RabbitBrowser/issues"
   },
-  "homepage": "https://github.com/yourusername/rabbit-browser#readme"
+  "homepage": "https://github.com/RabbitAI/RabbitBrowser#readme"
 }

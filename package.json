@@ -1,0 +1,46 @@
+{
+  "name": "rabbit-browser",
+  "version": "1.0.0",
+  "description": "Browser automation tool for detecting interactive elements on web pages",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/index.ts",
+    "test": "ts-node src/test-consent-sites.ts",
+    "prepublishOnly": "npm run build",
+    "example:simple": "ts-node src/examples/simple-usage.ts",
+    "example:consent": "ts-node src/examples/consent-detection.ts"
+  },
+  "keywords": [
+    "puppeteer",
+    "highlight",
+    "web-scraping",
+    "consent-buttons",
+    "interactive-elements",
+    "browser-automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^24.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.14",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/rabbit-browser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/rabbit-browser/issues"
+  },
+  "homepage": "https://github.com/yourusername/rabbit-browser#readme"
+}

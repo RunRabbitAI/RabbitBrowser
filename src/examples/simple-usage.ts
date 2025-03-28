@@ -1,26 +1,27 @@
 import rabbitBrowser from "../index";
 
 /**
- * Simple example of using RabbitBrowser
+ * Simple example of using RabbitBrowser with optimized output for AI token usage
  */
 async function main() {
   try {
-    // Navigate to Google
-    console.log("Navigating to Google...");
+    // Navigate to a website
+    console.log("Navigating to website...");
     await rabbitBrowser.go("https://www.liftos.io");
 
-    // Get all the detected elements
-    const elements = rabbitBrowser.getElements();
+    // Get the complete data (elements and page context)
+    const completeData = rabbitBrowser.getCompleteData();
 
-    // Log the number of elements found
-    console.log(`Found ${elements.length} interactive elements`);
+    // Log data size
+    const jsonString = JSON.stringify(completeData);
+    console.log(`\nOutput size: ${jsonString.length} characters`);
+    console.log(
+      `Approximate tokens (chars/4): ~${Math.ceil(jsonString.length / 4)}`
+    );
 
-    // Log the first 3 elements as a preview
-    if (elements.length > 0) {
-      console.log("Preview of detected elements:");
-      const preview = elements;
-      console.log(JSON.stringify(preview, null, 2));
-    }
+    // Display optimized data
+    console.log("\nOptimized data for AI consumption:");
+    console.log(JSON.stringify(completeData, null, 2));
 
     // Close the browser
     // await rabbitBrowser.close();

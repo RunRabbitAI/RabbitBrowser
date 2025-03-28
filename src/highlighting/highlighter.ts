@@ -213,7 +213,7 @@ export async function initializeHighlighter(page: Page): Promise<void> {
 }
 
 /**
- * Collects and returns data about highlighted elements
+ * Collects and returns data about highlighted elements with optimized output for AI token usage
  */
 export async function collectElementData(
   page: Page
@@ -256,7 +256,7 @@ export async function collectElementData(
       });
     }
 
-    // Map the highlighted elements to their data
+    // Map the highlighted elements to their data, optimized for token usage
     const elements = window.highlightedElements.map(({ element }, index) => {
       // Get the element's text content
       const originalText = element.textContent?.trim() || "";
@@ -265,10 +265,20 @@ export async function collectElementData(
       const tagName = element.tagName.toLowerCase();
       const type = element.getAttribute("type") || "";
 
-      // Get attributes
+      // Get only essential attributes (skip highlight-related ones)
       const attributes: Record<string, string> = {};
       Array.from(element.attributes).forEach((attr: Attr) => {
-        attributes[attr.name] = attr.value;
+        // Skip data-highlight attributes and other non-essential ones
+        if (
+          !attr.name.startsWith("data-highlight") &&
+          attr.name !== "style" &&
+          attr.name !== "class" &&
+          attr.name !== "id" && // Already captured separately
+          !attr.name.startsWith("aria") && // Skip most aria attributes
+          attr.name !== "tabindex"
+        ) {
+          attributes[attr.name] = attr.value;
+        }
       });
 
       // Get immediate text content (excluding child element text)
@@ -292,61 +302,150 @@ export async function collectElementData(
         window.getComputedStyle(element).cursor === "pointer" ||
         hasOnClickAttr;
 
-      // Generate the selector
-      function generateSelector(el: Element): string {
+      // Generate a simplified selector - just essential for identification
+      function generateSimplifiedSelector(el: Element): string {
         if (el.id) {
           return `#${el.id}`;
         }
 
-        let path = "";
-        let element = el;
-        while (element && element.nodeType === Node.ELEMENT_NODE) {
-          let selector = element.nodeName.toLowerCase();
-          if (element.id) {
-            selector += `#${element.id}`;
-            path = selector + (path ? " > " + path : "");
-            break;
-          } else {
-            let sibling = element.previousElementSibling;
-            let index = 1;
+        // For non-id elements, use a simpler path
+        let tagPath = el.tagName.toLowerCase();
 
-            while (sibling) {
-              if (sibling.nodeName.toLowerCase() === selector) {
-                index++;
-              }
-              sibling = sibling.previousElementSibling;
-            }
-
-            if (index > 1) {
-              selector += `:nth-of-type(${index})`;
-            }
-          }
-
-          path = selector + (path ? " > " + path : "");
-          element = element.parentNode as Element;
+        // Add a class if available (but simplified)
+        if (el.className) {
+          const mainClass = el.className.split(" ")[0]; // Just use first class
+          tagPath += `.${mainClass}`;
         }
 
-        return path;
+        return tagPath;
       }
 
-      // Return element data
-      return {
-        index,
+      // Create a lean element data object
+      const elementData: any = {
         text: originalText,
-        immediateText: immediateText || undefined,
         tagName,
-        type: type || undefined,
-        id: element.id || undefined,
-        className: element.className || undefined,
-        href: element instanceof HTMLAnchorElement ? element.href : undefined,
-        value: element instanceof HTMLInputElement ? element.value : undefined,
-        attributes,
-        selector: generateSelector(element),
-        isVisible: true,
-        isClickable,
       };
+
+      // Only add these fields if they have values
+      if (element.id) elementData.id = element.id;
+      if (type) elementData.type = type;
+      if (Object.keys(attributes).length > 0)
+        elementData.attributes = attributes;
+      if (tagName === "a" && element instanceof HTMLAnchorElement)
+        elementData.href = element.href;
+      if (
+        tagName === "input" &&
+        element instanceof HTMLInputElement &&
+        element.value
+      )
+        elementData.value = element.value;
+
+      // Add simplified selector
+      elementData.selector = generateSimplifiedSelector(element);
+      elementData.isClickable = isClickable;
+
+      return elementData;
     });
 
     return { elements };
+  });
+}
+
+/**
+ * Collects meaningful text content from the page for context, optimized for token usage
+ */
+export async function collectPageTextContext(
+  page: Page
+): Promise<{ pageContext: any }> {
+  return await page.evaluate(() => {
+    function sendToNodeJS(message: string) {
+      console.log(`[HIGHLIGHT] ${message}`);
+    }
+
+    sendToNodeJS("Collecting page text context for AI analysis");
+
+    // Function to clean text
+    const cleanText = (text: string) => {
+      return text.replace(/\s+/g, " ").trim();
+    };
+
+    // Get page title
+    const title = document.title;
+
+    // Get meta description
+    const metaDescription =
+      document
+        .querySelector('meta[name="description"]')
+        ?.getAttribute("content") || "";
+
+    // Get h1, h2, h3 elements with text, but limit to a reasonable number
+    const getHeadings = (selector: string, limit: number) => {
+      return Array.from(document.querySelectorAll(selector))
+        .map((el) => cleanText(el.textContent || ""))
+        .filter((text) => text.length > 5) // Only meaningful headings
+        .slice(0, limit); // Limit to specified number
+    };
+
+    const headings = {
+      h1: getHeadings("h1", 3), // Usually just need the main headings
+      h2: getHeadings("h2", 5), // A few subheadings
+      h3: getHeadings("h3", 5), // A few section titles
+    };
+
+    // Get main content paragraphs, but limit and summarize if too long
+    // Prioritize content in main, article, or section tags, fallback to all p tags if needed
+    let mainContentSelector = "main p, article p, section p";
+    let paragraphs = Array.from(document.querySelectorAll(mainContentSelector))
+      .map((el) => cleanText(el.textContent || ""))
+      .filter((text) => text.length > 30); // Only include substantial paragraphs
+
+    // If we didn't find enough paragraphs, try all paragraphs
+    if (paragraphs.length < 2) {
+      paragraphs = Array.from(document.querySelectorAll("p"))
+        .map((el) => cleanText(el.textContent || ""))
+        .filter((text) => text.length > 30);
+    }
+
+    // Limit paragraphs and truncate if too long
+    paragraphs = paragraphs
+      .slice(0, 5)
+      .map((p) => (p.length > 200 ? p.substring(0, 200) + "..." : p));
+
+    // Get navigation items text (only a reasonable number)
+    const navigationText = Array.from(
+      document.querySelectorAll("nav a, header a")
+    )
+      .map((el) => cleanText(el.textContent || ""))
+      .filter((text) => text.length > 0)
+      .slice(0, 8); // Only keep the first 8 nav items
+
+    // Get footer text but keep it compact
+    const footerText = Array.from(document.querySelectorAll("footer"))
+      .map((el) => cleanText(el.textContent || ""))
+      .filter((text) => text.length > 0)
+      .slice(0, 1) // Usually just need first footer
+      .map((text) =>
+        text.length > 150 ? text.substring(0, 150) + "..." : text
+      );
+
+    // Return structured context information - optimized for token usage
+    const pageContext: any = {
+      title,
+      url: window.location.href,
+    };
+
+    // Only add fields that have content
+    if (metaDescription) pageContext.metaDescription = metaDescription;
+    if (headings.h1.length > 0 || headings.h2.length > 0) {
+      pageContext.headings = {};
+      if (headings.h1.length > 0) pageContext.headings.h1 = headings.h1;
+      if (headings.h2.length > 0) pageContext.headings.h2 = headings.h2;
+      if (headings.h3.length > 0) pageContext.headings.h3 = headings.h3;
+    }
+    if (paragraphs.length > 0) pageContext.mainContent = paragraphs;
+    if (navigationText.length > 0) pageContext.navigation = navigationText;
+    if (footerText.length > 0) pageContext.footer = footerText[0];
+
+    return { pageContext };
   });
 }

@@ -7,7 +7,6 @@
   "scripts": {
     "build": "tsc",
     "start": "ts-node src/index.ts",
-    "test": "ts-node src/test-consent-sites.ts",
     "prepublishOnly": "npm run build",
     "example:simple": "ts-node src/examples/simple-usage.ts",
     "example:consent": "ts-node src/examples/consent-detection.ts"

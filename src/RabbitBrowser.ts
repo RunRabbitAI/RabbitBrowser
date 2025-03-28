@@ -6,6 +6,7 @@ import { initializeElementDetector } from "./highlighting/elementDetector";
 import {
   initializeHighlighter,
   collectElementData,
+  collectPageTextContext,
 } from "./highlighting/highlighter";
 
 /**
@@ -16,6 +17,7 @@ export class RabbitBrowser {
   private page: Page | null = null;
   private initialized: boolean = false;
   private elements: ElementData[] = [];
+  private pageContext: any = null;
   private currentUrl: string = "";
   private options: {
     focusOnConsent: boolean;
@@ -23,6 +25,7 @@ export class RabbitBrowser {
     waitTime: number;
     minElementsRequired: number;
     earlyReturn: boolean;
+    includePageContext: boolean;
   };
 
   /**
@@ -35,6 +38,7 @@ export class RabbitBrowser {
       waitTime?: number;
       minElementsRequired?: number;
       earlyReturn?: boolean;
+      includePageContext?: boolean;
     } = {}
   ) {
     // Default options
@@ -44,6 +48,7 @@ export class RabbitBrowser {
       waitTime: options.waitTime ?? 3000,
       minElementsRequired: options.minElementsRequired ?? 1,
       earlyReturn: options.earlyReturn ?? true,
+      includePageContext: options.includePageContext ?? true,
     };
   }
 
@@ -75,6 +80,7 @@ export class RabbitBrowser {
 
       // Clear previous elements
       this.elements = [];
+      this.pageContext = null;
 
       // Navigate to the URL
       await navigateTo(this.page, url);
@@ -151,6 +157,15 @@ export class RabbitBrowser {
         }
       }
 
+      // Collect page context if requested
+      if (this.options.includePageContext) {
+        if (this.options.logDetails) {
+          log("Collecting page text context for AI analysis...");
+        }
+        const contextData = await collectPageTextContext(this.page);
+        this.pageContext = contextData.pageContext;
+      }
+
       // Log completion
       if (this.options.logDetails) {
         if (this.elements.length === 0) {
@@ -171,6 +186,25 @@ export class RabbitBrowser {
    */
   getElements(): ElementData[] {
     return this.elements;
+  }
+
+  /**
+   * Get page context information including text content
+   * @returns Page context object with text content
+   */
+  getPageContext(): any {
+    return this.pageContext;
+  }
+
+  /**
+   * Get complete data with both elements and page context
+   * @returns Object containing elements and page context
+   */
+  getCompleteData(): { elements: ElementData[]; pageContext: any } {
+    return {
+      elements: this.elements,
+      pageContext: this.pageContext,
+    };
   }
 
   /**

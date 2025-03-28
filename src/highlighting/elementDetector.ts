@@ -442,6 +442,7 @@ export async function initializeElementDetector(
     window.getClickableElements = function (): Element[] {
       // Results array
       const clickableElements: Element[] = [];
+      const processedParents = new Set<Element>();
 
       // First, add all generic interactive elements
       const interactiveSelectors = [
@@ -467,20 +468,93 @@ export async function initializeElementDetector(
         );
       }
 
-      // Also look for elements with cursor:pointer style
-      const allElements = document.querySelectorAll("*");
-      Array.from(allElements).forEach((element) => {
+      // Process elements in order from parent to child
+      // This ensures we process parent buttons before their text nodes
+      function processElementsInDOMOrder() {
+        // Get all potential elements matching our selectors
+        const potentialElements: Element[] = [];
+        interactiveSelectors.forEach((selector) => {
+          try {
+            const elements = document.querySelectorAll(selector);
+            potentialElements.push(...Array.from(elements));
+          } catch (e) {
+            // Skip invalid selectors
+          }
+        });
+
+        // Also add elements with cursor:pointer style
+        const allElements = document.querySelectorAll("*");
+        Array.from(allElements).forEach((element) => {
+          try {
+            const style = window.getComputedStyle(element);
+            if (style.cursor === "pointer") {
+              potentialElements.push(element);
+            }
+          } catch (e) {
+            // Skip style errors
+          }
+        });
+
+        // Remove duplicates
+        const uniqueElements = [...new Set(potentialElements)];
+
+        // Process elements in DOM order (parent first, then children)
+        const treeWalker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_ELEMENT,
+          {
+            acceptNode: function (node) {
+              if (uniqueElements.includes(node as Element)) {
+                return NodeFilter.FILTER_ACCEPT;
+              }
+              return NodeFilter.FILTER_SKIP;
+            },
+          }
+        );
+
+        // Process each element in DOM order
+        let currentNode = treeWalker.nextNode();
+        while (currentNode) {
+          processElement(currentNode as Element);
+          currentNode = treeWalker.nextNode();
+        }
+      }
+
+      // Process a single element
+      function processElement(element: Element) {
         // Skip elements that are too small
         const rect = element.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) {
           return;
         }
 
+        // Skip elements that are children of already processed elements
+        let parent = element.parentElement;
+        while (parent) {
+          if (processedParents.has(parent)) {
+            return;
+          }
+          parent = parent.parentElement;
+        }
+
         let isClickable = false;
+        let isContainer = false;
 
         // Check if the element is in our list of likely interactive elements
         const tagName = element.tagName.toLowerCase();
         const type = element.getAttribute("type");
+
+        // Skip text containers inside interactive elements
+        if (
+          (tagName === "span" || tagName === "div" || tagName === "p") &&
+          element.children.length === 0 &&
+          element.parentElement &&
+          (element.parentElement.tagName.toLowerCase() === "button" ||
+            element.parentElement.tagName.toLowerCase() === "a" ||
+            element.parentElement.getAttribute("role") === "button")
+        ) {
+          return;
+        }
 
         // Check for standard clickable elements
         if (
@@ -499,6 +573,15 @@ export async function initializeElementDetector(
             ["button", "submit", "reset", "checkbox", "radio"].includes(type))
         ) {
           isClickable = true;
+
+          // Mark containers that might contain text nodes
+          if (
+            tagName === "button" ||
+            tagName === "a" ||
+            element.getAttribute("role") === "button"
+          ) {
+            isContainer = true;
+          }
         }
 
         // Check for form inputs if enabled
@@ -552,8 +635,17 @@ export async function initializeElementDetector(
 
         if (isClickable) {
           clickableElements.push(element);
+
+          // If this is a container element, mark it as processed
+          // to prevent its child text nodes from being detected
+          if (isContainer) {
+            processedParents.add(element);
+          }
         }
-      });
+      }
+
+      // Process elements in DOM order
+      processElementsInDOMOrder();
 
       // Remove duplicates and sort by position
       const uniqueElements = [...new Set(clickableElements)];

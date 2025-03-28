@@ -256,6 +256,9 @@ export async function collectElementData(
       });
     }
 
+    // Filter out duplicate elements or button/text pairs before mapping
+    const uniqueElements = filterDuplicateElements(window.highlightedElements);
+
     // Find additional form elements that might not be highlighted yet
     function findFormElements() {
       const formElements = [];
@@ -272,8 +275,79 @@ export async function collectElementData(
       // Combine all form elements
       return [...inputs, ...selects, ...textareas].filter((el) => {
         // Skip elements that are already highlighted
-        return !window.processedElements.has(el);
+        if (window.processedElements.has(el)) {
+          return false;
+        }
+
+        // Skip elements that are children of already processed elements
+        let parent = el.parentElement;
+        while (parent) {
+          if (window.processedElements.has(parent)) {
+            return false;
+          }
+          parent = parent.parentElement;
+        }
+
+        return true;
       });
+    }
+
+    // Function to filter out duplicate elements like button text nodes
+    function filterDuplicateElements(
+      elements: Array<{
+        element: Element;
+        highlight: HTMLElement;
+        number: HTMLElement;
+      }>
+    ) {
+      const result: Array<{
+        element: Element;
+        highlight: HTMLElement;
+        number: HTMLElement;
+      }> = [];
+      const skipElements = new Set<Element>();
+
+      // First pass: identify child elements that should be skipped
+      elements.forEach(({ element }) => {
+        // Check if it's a text container inside a button/link
+        const tagName = element.tagName.toLowerCase();
+        const parentElement = element.parentElement;
+
+        // Skip text containers inside buttons
+        if (
+          (tagName === "span" || tagName === "div" || tagName === "p") &&
+          element.children.length === 0 &&
+          parentElement &&
+          (parentElement.tagName.toLowerCase() === "button" ||
+            parentElement.tagName.toLowerCase() === "a" ||
+            parentElement.getAttribute("role") === "button")
+        ) {
+          skipElements.add(element);
+        }
+
+        // Check if any other element is a parent of this element
+        elements.forEach(({ element: otherElement }) => {
+          if (element !== otherElement && element.contains(otherElement)) {
+            skipElements.add(otherElement);
+          }
+        });
+      });
+
+      // Second pass: build result without duplicates
+      elements.forEach((entry) => {
+        if (!skipElements.has(entry.element)) {
+          result.push(entry);
+        }
+      });
+
+      // Log numbers
+      if (skipElements.size > 0) {
+        sendToNodeJS(
+          `Filtered out ${skipElements.size} duplicate or child elements`
+        );
+      }
+
+      return result;
     }
 
     // Add additional form elements to the list
@@ -315,7 +389,7 @@ export async function collectElementData(
     }
 
     // Map the highlighted elements to their data, optimized for token usage
-    const elements = window.highlightedElements.map(({ element }, index) => {
+    const elements = uniqueElements.map(({ element }, index) => {
       // Get the element's text content
       const originalText = element.textContent?.trim() || "";
 

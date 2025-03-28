@@ -256,6 +256,64 @@ export async function collectElementData(
       });
     }
 
+    // Find additional form elements that might not be highlighted yet
+    function findFormElements() {
+      const formElements = [];
+
+      // Get all input, select, and textarea elements
+      const inputs = Array.from(
+        document.querySelectorAll(
+          'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"])'
+        )
+      );
+      const selects = Array.from(document.querySelectorAll("select"));
+      const textareas = Array.from(document.querySelectorAll("textarea"));
+
+      // Combine all form elements
+      return [...inputs, ...selects, ...textareas].filter((el) => {
+        // Skip elements that are already highlighted
+        return !window.processedElements.has(el);
+      });
+    }
+
+    // Add additional form elements to the list
+    const formElements = findFormElements();
+    if (formElements.length > 0) {
+      sendToNodeJS(`Found ${formElements.length} additional form elements`);
+      formElements.forEach((element, i) => {
+        const currentIndex = window.highlightedElements.length + i + 1;
+        window.highlightClickableElement(element, currentIndex);
+      });
+    }
+
+    // Function to find associated label text for a form element
+    function findLabelText(element: Element): string {
+      // Check for label with "for" attribute
+      if (element.id) {
+        const label = document.querySelector(`label[for="${element.id}"]`);
+        if (label) {
+          return label.textContent?.trim() || "";
+        }
+      }
+
+      // Check for parent label
+      let parent = element.parentElement;
+      while (parent) {
+        if (parent.tagName.toLowerCase() === "label") {
+          const clone = parent.cloneNode(true) as HTMLElement;
+          // Remove the input element text from the label
+          const inputElements = clone.querySelectorAll(
+            "input, select, textarea"
+          );
+          inputElements.forEach((el) => el.remove());
+          return clone.textContent?.trim() || "";
+        }
+        parent = parent.parentElement;
+      }
+
+      return "";
+    }
+
     // Map the highlighted elements to their data, optimized for token usage
     const elements = window.highlightedElements.map(({ element }, index) => {
       // Get the element's text content
@@ -302,6 +360,10 @@ export async function collectElementData(
         window.getComputedStyle(element).cursor === "pointer" ||
         hasOnClickAttr;
 
+      // Check if element is a fillable form element
+      const isFormInput =
+        tagName === "input" || tagName === "textarea" || tagName === "select";
+
       // Generate a simplified selector - just essential for identification
       function generateSimplifiedSelector(el: Element): string {
         if (el.id) {
@@ -333,12 +395,60 @@ export async function collectElementData(
         elementData.attributes = attributes;
       if (tagName === "a" && element instanceof HTMLAnchorElement)
         elementData.href = element.href;
-      if (
+
+      // Enhanced data for form elements
+      if (isFormInput) {
+        elementData.isFormInput = true;
+
+        // Find associated label
+        const labelText = findLabelText(element);
+        if (labelText) elementData.label = labelText;
+
+        // Get placeholder
+        const placeholder = element.getAttribute("placeholder");
+        if (placeholder) elementData.placeholder = placeholder;
+
+        // Get name
+        const name = element.getAttribute("name");
+        if (name) elementData.name = name;
+
+        // Get required status
+        if (element.hasAttribute("required")) elementData.required = true;
+
+        // Get current value
+        if (tagName === "input" && element instanceof HTMLInputElement) {
+          if (type === "checkbox" || type === "radio") {
+            elementData.checked = element.checked;
+          } else if (element.value) {
+            elementData.value = element.value;
+          }
+        } else if (
+          tagName === "textarea" &&
+          element instanceof HTMLTextAreaElement
+        ) {
+          if (element.value) elementData.value = element.value;
+        } else if (
+          tagName === "select" &&
+          element instanceof HTMLSelectElement
+        ) {
+          if (element.value) elementData.value = element.value;
+
+          // Get options for select elements
+          const options = Array.from(element.options).map((option) => ({
+            value: option.value,
+            text: option.text,
+            selected: option.selected,
+          }));
+
+          if (options.length > 0) elementData.options = options;
+        }
+      } else if (
         tagName === "input" &&
         element instanceof HTMLInputElement &&
         element.value
-      )
+      ) {
         elementData.value = element.value;
+      }
 
       // Add simplified selector
       elementData.selector = generateSimplifiedSelector(element);

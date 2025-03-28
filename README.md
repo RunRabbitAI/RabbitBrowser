@@ -49,6 +49,7 @@ const browser = new RabbitBrowser({
   logDetails: true,         // Log details to console
   earlyReturn: true,        // Return as soon as elements are found
   includePageContext: true, // Collect page text context for AI
+  includeFormInputs: true,  // Include form inputs for AI automation
 });
 
 // Navigate to a page
@@ -90,6 +91,7 @@ RabbitBrowser is designed to produce token-efficient output suitable for use wit
 3. Limit text content to what's most relevant
 4. Include only meaningful headings and paragraphs
 5. Truncate long text blocks to reduce token usage
+6. Detect form inputs with associated labels for AI automation
 
 This optimization reduces token usage when sending the data to AI services, while maintaining all the important information about the page structure and content.
 
@@ -120,6 +122,36 @@ The elements returned by `getElements()` have the following optimized structure:
     },
     "selector": "#accept-button",
     "isClickable": true
+  },
+  {
+    "text": "",
+    "tagName": "input",
+    "type": "text",
+    "id": "username",
+    "isFormInput": true,
+    "label": "Username",
+    "placeholder": "Enter your username",
+    "name": "username",
+    "required": true,
+    "value": "",
+    "selector": "#username",
+    "isClickable": true
+  },
+  {
+    "text": "",
+    "tagName": "select",
+    "id": "country",
+    "isFormInput": true,
+    "label": "Country",
+    "name": "country",
+    "value": "US",
+    "options": [
+      {"value": "US", "text": "United States", "selected": true},
+      {"value": "CA", "text": "Canada", "selected": false},
+      {"value": "UK", "text": "United Kingdom", "selected": false}
+    ],
+    "selector": "#country",
+    "isClickable": true
   }
 ]
 ```
@@ -147,6 +179,19 @@ The page context returned by `getPageContext()` has the following optimized stru
   "footer": "Copyright 2023. All rights reserved."
 }
 ```
+
+## Form Input Detection for AI Automation
+
+RabbitBrowser automatically detects form inputs and provides detailed information for AI-based form filling:
+
+- Text inputs, textareas, selects, and other form elements
+- Associated labels (either using the "for" attribute or parent label elements)
+- Placeholder text and name attributes
+- Current values
+- Required status
+- Available options for select elements
+
+This makes it easy for AI services to understand form structure and automate form filling tasks.
 
 ## Additional Methods
 

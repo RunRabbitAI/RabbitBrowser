@@ -26,6 +26,7 @@ export class RabbitBrowser {
     minElementsRequired: number;
     earlyReturn: boolean;
     includePageContext: boolean;
+    includeFormInputs: boolean;
   };
 
   /**
@@ -39,6 +40,7 @@ export class RabbitBrowser {
       minElementsRequired?: number;
       earlyReturn?: boolean;
       includePageContext?: boolean;
+      includeFormInputs?: boolean;
     } = {}
   ) {
     // Default options
@@ -49,6 +51,7 @@ export class RabbitBrowser {
       minElementsRequired: options.minElementsRequired ?? 1,
       earlyReturn: options.earlyReturn ?? true,
       includePageContext: options.includePageContext ?? true,
+      includeFormInputs: options.includeFormInputs ?? true,
     };
   }
 
@@ -92,6 +95,7 @@ export class RabbitBrowser {
       // Initialize the element detector
       await initializeElementDetector(this.page, {
         focusOnConsent: this.options.focusOnConsent,
+        includeFormInputs: this.options.includeFormInputs,
       });
 
       // Start observing for elements

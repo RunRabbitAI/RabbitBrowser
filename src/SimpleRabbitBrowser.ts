@@ -23,6 +23,7 @@ export class SimpleRabbitBrowser {
     logDetails: boolean;
     earlyReturn: boolean;
     includePageContext: boolean;
+    includeFormInputs: boolean;
   };
 
   /**
@@ -35,6 +36,7 @@ export class SimpleRabbitBrowser {
       logDetails?: boolean;
       earlyReturn?: boolean;
       includePageContext?: boolean;
+      includeFormInputs?: boolean;
     } = {}
   ) {
     // Default options
@@ -44,6 +46,7 @@ export class SimpleRabbitBrowser {
       logDetails: options.logDetails ?? false,
       earlyReturn: options.earlyReturn ?? true,
       includePageContext: options.includePageContext ?? true,
+      includeFormInputs: options.includeFormInputs ?? true,
     };
   }
 
@@ -75,6 +78,7 @@ export class SimpleRabbitBrowser {
       await initializeHighlighter(this.page);
       await initializeElementDetector(this.page, {
         focusOnConsent: this.options.focusOnConsent,
+        includeFormInputs: this.options.includeFormInputs,
       });
 
       // Start detecting elements

@@ -7,7 +7,7 @@ async function main() {
   try {
     // Navigate to a website
     console.log("Navigating to website...");
-    await rabbitBrowser.go("https://www.liftos.io");
+    await rabbitBrowser.go("https://www.liftos.app");
 
     // Get the complete data (elements and page context)
     const completeData = rabbitBrowser.getCompleteData();

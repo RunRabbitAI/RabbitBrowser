@@ -33,6 +33,26 @@ export async function initializeHighlighter(page: Page): Promise<void> {
         pointer-events: none;
         transition: opacity 0.2s ease;
       }
+      .text-highlight {
+        position: absolute;
+        pointer-events: none;
+        z-index: 9999;
+        box-sizing: border-box;
+        border: 2px solid #0066ff;
+        background-color: rgba(0, 102, 255, 0.15);
+        transition: opacity 0.2s ease;
+      }
+      .text-number {
+        position: absolute;
+        background-color: #0066ff;
+        color: white;
+        padding: 2px 5px;
+        border-radius: 10px;
+        font-size: 12px;
+        z-index: 10001;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+      }
     `;
     document.head.appendChild(style);
 
@@ -47,7 +67,9 @@ export async function initializeHighlighter(page: Page): Promise<void> {
 
     // Store references to elements and their highlights
     window.highlightedElements = window.highlightedElements || [];
+    window.highlightedTextBlocks = window.highlightedTextBlocks || [];
     window.processedElements = window.processedElements || new Set();
+    window.processedTextBlocks = window.processedTextBlocks || new Set();
 
     sendToNodeJS("Highlighter initialized with containers and styles");
 
@@ -79,9 +101,61 @@ export async function initializeHighlighter(page: Page): Promise<void> {
       { threshold: 0.1 }
     );
 
+    // Create an Intersection Observer for text blocks
+    window.textObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const elementId = entry.target.getAttribute("data-text-id");
+          if (!elementId) return;
+
+          const highlight = document.querySelector(
+            `.text-highlight[data-for="${elementId}"]`
+          ) as HTMLElement;
+          const number = document.querySelector(
+            `.text-number[data-for="${elementId}"]`
+          ) as HTMLElement;
+
+          if (highlight && number) {
+            if (entry.isIntersecting) {
+              highlight.style.opacity = "1";
+              number.style.opacity = "1";
+            } else {
+              highlight.style.opacity = "0";
+              number.style.opacity = "0";
+            }
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
     // Update highlight positions
     window.updateHighlights = function () {
+      // Update clickable elements
       window.highlightedElements.forEach((el) => {
+        if (!el.element || !document.body.contains(el.element)) return;
+
+        const rect = el.element.getBoundingClientRect();
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+
+        // Update highlight position
+        if (el.highlight) {
+          el.highlight.style.top = rect.top + scrollY + "px";
+          el.highlight.style.left = rect.left + scrollX + "px";
+          el.highlight.style.width = rect.width + "px";
+          el.highlight.style.height = rect.height + "px";
+        }
+
+        // Update number position
+        if (el.number) {
+          el.number.style.top = rect.top + scrollY + "px";
+          el.number.style.left = rect.left + scrollX + "px";
+        }
+      });
+
+      // Update text blocks
+      window.highlightedTextBlocks.forEach((el) => {
         if (!el.element || !document.body.contains(el.element)) return;
 
         const rect = el.element.getBoundingClientRect();
@@ -162,6 +236,58 @@ export async function initializeHighlighter(page: Page): Promise<void> {
       number.style.left = rect.left + scrollX + "px";
     };
 
+    // Function to highlight a text block
+    window.highlightTextBlock = function (element: Element, index: number) {
+      // Skip if already processed
+      if (window.processedTextBlocks.has(element)) {
+        return;
+      }
+
+      window.processedTextBlocks.add(element);
+
+      // Give the element a unique identifier
+      const elementId = "text-" + index;
+      element.setAttribute("data-text-id", elementId);
+
+      // Create highlight elements
+      const highlight = document.createElement("div");
+      highlight.className = "text-highlight";
+      highlight.setAttribute("data-for", elementId);
+
+      const number = document.createElement("div");
+      number.className = "text-number";
+      number.setAttribute("data-for", elementId);
+      number.textContent = "T" + index.toString();
+
+      // Add to container
+      highlightContainer.appendChild(highlight);
+      highlightContainer.appendChild(number);
+
+      // Store reference
+      window.highlightedTextBlocks.push({
+        element,
+        highlight,
+        number,
+        text: element.textContent?.trim() || "",
+      });
+
+      // Observe this element
+      window.textObserver.observe(element);
+
+      // Set position
+      const rect = element.getBoundingClientRect();
+      const scrollX = window.scrollX;
+      const scrollY = window.scrollY;
+
+      highlight.style.top = rect.top + scrollY + "px";
+      highlight.style.left = rect.left + scrollX + "px";
+      highlight.style.width = rect.width + "px";
+      highlight.style.height = rect.height + "px";
+
+      number.style.top = rect.top + scrollY + "px";
+      number.style.left = rect.left + scrollX + "px";
+    };
+
     // Function to start observing for new elements
     window.startObservingNewElements = function () {
       // Function to update clickable elements when DOM changes
@@ -181,13 +307,267 @@ export async function initializeHighlighter(page: Page): Promise<void> {
 
         // Process each new element
         newUnprocessedElements.forEach((element, i) => {
-          window.highlightClickableElement(element, i + 1);
+          window.highlightClickableElement(
+            element,
+            window.highlightedElements.length + i + 1
+          );
         });
 
         if (newUnprocessedElements.length > 0) {
           sendToNodeJS(
             `Total highlighted elements: ${window.highlightedElements.length}`
           );
+        }
+
+        // Now find and highlight important text blocks
+        findAndHighlightTextBlocks();
+      }
+
+      // Function to find and highlight important text blocks
+      function findAndHighlightTextBlocks() {
+        // Get detector options
+        const options = window._detectorOptions || {
+          highlightAllText: true,
+        };
+
+        // If text highlighting is enabled, use a more comprehensive approach
+        if (options.highlightAllText) {
+          // Comprehensive selectors for content
+          const textSelectors = [
+            // Headings with high priority (always include these)
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            // Key content elements
+            "p",
+            "article p",
+            "main p",
+            "section p",
+            ".content p",
+            "[role='main'] p",
+            "div > p",
+            "div > div > p",
+            // List items
+            "li",
+            "ul > li",
+            "ol > li",
+            // Other text containers
+            ".text-content",
+            ".description",
+            ".summary",
+            "div.text",
+            "span.text",
+            "[role='text']",
+            "[role='heading']",
+            // Important UI text
+            "label",
+            "legend",
+            ".card-text",
+            ".info-text",
+            // Other content blocks
+            "blockquote",
+            "pre",
+            "code",
+          ];
+
+          let allTextBlocks = [];
+          // Find text blocks using selectors
+          for (const selector of textSelectors) {
+            try {
+              const elements = document.querySelectorAll(selector);
+              allTextBlocks.push(...Array.from(elements));
+            } catch (e) {
+              // Skip invalid selectors
+            }
+          }
+
+          // Filter out duplicates
+          const uniqueElements = [...new Set(allTextBlocks)];
+
+          // Minimal filtering to catch as much text as possible
+          const significantTextBlocks = uniqueElements.filter((element) => {
+            // Skip if already processed
+            if (window.processedTextBlocks.has(element)) {
+              return false;
+            }
+
+            // Always include headings
+            const tagName = element.tagName.toLowerCase();
+            if (
+              tagName.startsWith("h") &&
+              tagName.length === 2 &&
+              tagName[1] >= "1" &&
+              tagName[1] <= "6"
+            ) {
+              return true;
+            }
+
+            // Skip completely empty text
+            const text = element.textContent?.trim() || "";
+            if (text.length === 0) {
+              return false;
+            }
+
+            // Skip if parent is already a text block (avoid duplication)
+            let parent = element.parentElement;
+            while (parent) {
+              if (window.processedTextBlocks.has(parent)) {
+                return false;
+              }
+              parent = parent.parentElement;
+            }
+
+            // Skip enormous containers (likely not pure text)
+            if (element.querySelectorAll("*").length > 30) {
+              return false;
+            }
+
+            // Accept most text elements
+            return true;
+          });
+
+          // Include up to 100 text blocks
+          const textBlocksToHighlight = significantTextBlocks.slice(0, 100);
+
+          if (textBlocksToHighlight.length > 0) {
+            sendToNodeJS(
+              `Found ${textBlocksToHighlight.length} text blocks to highlight`
+            );
+
+            textBlocksToHighlight.forEach((element, i) => {
+              window.highlightTextBlock(
+                element,
+                window.highlightedTextBlocks.length + i + 1
+              );
+            });
+
+            sendToNodeJS(
+              `Total highlighted text blocks: ${window.highlightedTextBlocks.length}`
+            );
+          }
+        } else {
+          // Use the original, more selective approach for text elements
+          const textSelectors = [
+            // Headings with high priority
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            // Paragraphs and text content
+            "p",
+            "article p",
+            "main p",
+            "section p",
+            ".content p",
+            "[role='main'] p",
+            // List items
+            "li",
+            // Other text containers
+            ".text-content",
+            ".description",
+            ".summary",
+            "[role='text']",
+            "[role='heading']",
+            // Important UI text
+            "label",
+            "legend",
+            ".card-text",
+            ".info-text",
+            // Other content blocks
+            "blockquote",
+            "pre",
+            "code",
+          ];
+
+          let allTextBlocks = [];
+          // Find text blocks using selectors
+          for (const selector of textSelectors) {
+            try {
+              const elements = document.querySelectorAll(selector);
+              allTextBlocks.push(...Array.from(elements));
+            } catch (e) {
+              // Skip invalid selectors
+            }
+          }
+
+          // Filter to only include content that's meaningful
+          const significantTextBlocks = allTextBlocks.filter((element) => {
+            // Skip if already processed
+            if (window.processedTextBlocks.has(element)) {
+              return false;
+            }
+
+            // Accept any headings regardless of length
+            const tagName = element.tagName.toLowerCase();
+            if (
+              tagName.startsWith("h") &&
+              tagName.length === 2 &&
+              tagName[1] >= "1" &&
+              tagName[1] <= "6"
+            ) {
+              return true;
+            }
+
+            // Skip empty text
+            const text = element.textContent?.trim() || "";
+            if (text.length === 0) {
+              return false;
+            }
+
+            // Accept shorter text for UI elements
+            if (
+              (tagName === "label" || tagName === "legend") &&
+              text.length > 0
+            ) {
+              return true;
+            }
+
+            // For paragraphs and other elements, use a lower character threshold
+            if (text.length > 10) {
+              return true;
+            }
+
+            // Skip if parent is already a text block
+            let parent = element.parentElement;
+            while (parent) {
+              if (window.processedTextBlocks.has(parent)) {
+                return false;
+              }
+              parent = parent.parentElement;
+            }
+
+            // Skip if it's a large container
+            if (element.querySelectorAll("*").length > 15) {
+              return false;
+            }
+
+            return false;
+          });
+
+          // Increase the limit to catch more text
+          const textBlocksToHighlight = significantTextBlocks.slice(0, 50);
+
+          if (textBlocksToHighlight.length > 0) {
+            sendToNodeJS(
+              `Found ${textBlocksToHighlight.length} text blocks to highlight`
+            );
+
+            textBlocksToHighlight.forEach((element, i) => {
+              window.highlightTextBlock(
+                element,
+                window.highlightedTextBlocks.length + i + 1
+              );
+            });
+
+            sendToNodeJS(
+              `Total highlighted text blocks: ${window.highlightedTextBlocks.length}`
+            );
+          }
         }
       }
 
@@ -207,7 +587,7 @@ export async function initializeHighlighter(page: Page): Promise<void> {
       // Initial scan
       refreshClickableElements();
 
-      sendToNodeJS("Started observing for new elements");
+      sendToNodeJS("Started observing for new elements and text blocks");
     };
   });
 }
@@ -217,7 +597,7 @@ export async function initializeHighlighter(page: Page): Promise<void> {
  */
 export async function collectElementData(
   page: Page
-): Promise<{ elements: ElementData[] }> {
+): Promise<{ elements: ElementData[]; textBlocks: any[] }> {
   return await page.evaluate(() => {
     function sendToNodeJS(message: string) {
       console.log(`[HIGHLIGHT] ${message}`);
@@ -228,11 +608,15 @@ export async function collectElementData(
       window.highlightedElements.length === 0
     ) {
       sendToNodeJS("No highlighted elements found to process");
-      return { elements: [] };
+      return { elements: [], textBlocks: [] };
     }
 
     sendToNodeJS(
-      `Processing data for ${window.highlightedElements.length} highlighted elements`
+      `Processing data for ${
+        window.highlightedElements.length
+      } highlighted elements and ${
+        window.highlightedTextBlocks?.length || 0
+      } text blocks`
     );
 
     // Check if we have consent buttons among highlighted elements
@@ -403,6 +787,7 @@ export async function collectElementData(
         // Skip data-highlight attributes and other non-essential ones
         if (
           !attr.name.startsWith("data-highlight") &&
+          !attr.name.startsWith("data-text") &&
           attr.name !== "style" &&
           attr.name !== "class" &&
           attr.name !== "id" && // Already captured separately
@@ -444,16 +829,29 @@ export async function collectElementData(
           return `#${el.id}`;
         }
 
-        // For non-id elements, use a simpler path
-        let tagPath = el.tagName.toLowerCase();
+        // Try to create a more robust selector for Puppeteer
+        let selector = el.tagName.toLowerCase();
 
-        // Add a class if available (but simplified)
-        if (el.className) {
-          const mainClass = el.className.split(" ")[0]; // Just use first class
-          tagPath += `.${mainClass}`;
+        // Add a useful attribute if available
+        if (el.hasAttribute("name")) {
+          selector += `[name="${el.getAttribute("name")}"]`;
+        } else if (el.hasAttribute("placeholder")) {
+          selector += `[placeholder="${el.getAttribute("placeholder")}"]`;
+        } else if (el.hasAttribute("title")) {
+          selector += `[title="${el.getAttribute("title")}"]`;
+        } else if (el.hasAttribute("aria-label")) {
+          selector += `[aria-label="${el.getAttribute("aria-label")}"]`;
+        } else if (el.className) {
+          // Add the most specific class
+          const classes = el.className
+            .split(" ")
+            .filter((c) => c.trim().length > 0);
+          if (classes.length > 0) {
+            selector += `.${classes[0]}`;
+          }
         }
 
-        return tagPath;
+        return selector;
       }
 
       // Create a lean element data object
@@ -470,9 +868,19 @@ export async function collectElementData(
       if (tagName === "a" && element instanceof HTMLAnchorElement)
         elementData.href = element.href;
 
+      // Add puppeteer-specific info for future interaction
+      if (isClickable || isFormInput) {
+        // Add minimal puppet property for Puppeteer interactions
+        elementData.puppet = {
+          selector: generateSimplifiedSelector(element),
+          index,
+        };
+      }
+
       // Enhanced data for form elements
       if (isFormInput) {
         elementData.isFormInput = true;
+        elementData.interactable = true;
 
         // Find associated label
         const labelText = findLabelText(element);
@@ -488,6 +896,14 @@ export async function collectElementData(
 
         // Get required status
         if (element.hasAttribute("required")) elementData.required = true;
+
+        // Add validation info
+        if (element.hasAttribute("pattern"))
+          elementData.pattern = element.getAttribute("pattern");
+        if (element.hasAttribute("minlength"))
+          elementData.minLength = element.getAttribute("minlength");
+        if (element.hasAttribute("maxlength"))
+          elementData.maxLength = element.getAttribute("maxlength");
 
         // Get current value
         if (tagName === "input" && element instanceof HTMLInputElement) {
@@ -524,14 +940,77 @@ export async function collectElementData(
         elementData.value = element.value;
       }
 
-      // Add simplified selector
-      elementData.selector = generateSimplifiedSelector(element);
       elementData.isClickable = isClickable;
+
+      // Add interactable flag for easy identification
+      if (isClickable || isFormInput) {
+        elementData.interactable = true;
+      }
 
       return elementData;
     });
 
-    return { elements };
+    // Process text blocks
+    const textBlocks =
+      window.highlightedTextBlocks?.map(({ element, text }, index) => {
+        const tagName = element.tagName.toLowerCase();
+        let textType = "paragraph";
+
+        if (
+          tagName === "h1" ||
+          tagName === "h2" ||
+          tagName === "h3" ||
+          tagName === "h4" ||
+          tagName === "h5" ||
+          tagName === "h6"
+        ) {
+          textType = "heading";
+        } else if (tagName === "li") {
+          textType = "list-item";
+        }
+
+        return {
+          index: index + 1,
+          type: textType,
+          tagName,
+          text: text || element.textContent?.trim() || "",
+          id: element.id || undefined,
+          className: element.className || undefined,
+          selector: generateSimplifiedSelector(element),
+        };
+      }) || [];
+
+    function generateSimplifiedSelector(el: Element): string {
+      if (el.id) {
+        return `#${el.id}`;
+      }
+
+      // Try to create a more robust selector for Puppeteer
+      let selector = el.tagName.toLowerCase();
+
+      // Add a useful attribute if available
+      if (el.hasAttribute("name")) {
+        selector += `[name="${el.getAttribute("name")}"]`;
+      } else if (el.hasAttribute("placeholder")) {
+        selector += `[placeholder="${el.getAttribute("placeholder")}"]`;
+      } else if (el.hasAttribute("title")) {
+        selector += `[title="${el.getAttribute("title")}"]`;
+      } else if (el.hasAttribute("aria-label")) {
+        selector += `[aria-label="${el.getAttribute("aria-label")}"]`;
+      } else if (el.className) {
+        // Add the most specific class
+        const classes = el.className
+          .split(" ")
+          .filter((c) => c.trim().length > 0);
+        if (classes.length > 0) {
+          selector += `.${classes[0]}`;
+        }
+      }
+
+      return selector;
+    }
+
+    return { elements, textBlocks };
   });
 }
 
@@ -561,20 +1040,6 @@ export async function collectPageTextContext(
       document
         .querySelector('meta[name="description"]')
         ?.getAttribute("content") || "";
-
-    // Get h1, h2, h3 elements with text, but limit to a reasonable number
-    const getHeadings = (selector: string, limit: number) => {
-      return Array.from(document.querySelectorAll(selector))
-        .map((el) => cleanText(el.textContent || ""))
-        .filter((text) => text.length > 5) // Only meaningful headings
-        .slice(0, limit); // Limit to specified number
-    };
-
-    const headings = {
-      h1: getHeadings("h1", 3), // Usually just need the main headings
-      h2: getHeadings("h2", 5), // A few subheadings
-      h3: getHeadings("h3", 5), // A few section titles
-    };
 
     // Get main content paragraphs, but limit and summarize if too long
     // Prioritize content in main, article, or section tags, fallback to all p tags if needed
@@ -620,12 +1085,6 @@ export async function collectPageTextContext(
 
     // Only add fields that have content
     if (metaDescription) pageContext.metaDescription = metaDescription;
-    if (headings.h1.length > 0 || headings.h2.length > 0) {
-      pageContext.headings = {};
-      if (headings.h1.length > 0) pageContext.headings.h1 = headings.h1;
-      if (headings.h2.length > 0) pageContext.headings.h2 = headings.h2;
-      if (headings.h3.length > 0) pageContext.headings.h3 = headings.h3;
-    }
     if (paragraphs.length > 0) pageContext.mainContent = paragraphs;
     if (navigationText.length > 0) pageContext.navigation = navigationText;
     if (footerText.length > 0) pageContext.footer = footerText[0];

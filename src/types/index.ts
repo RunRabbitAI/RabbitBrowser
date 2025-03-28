@@ -5,6 +5,14 @@ export interface HighlightedElement {
   number: HTMLElement;
 }
 
+// Type for highlighted text blocks
+export interface HighlightedTextBlock {
+  element: Element;
+  highlight: HTMLElement;
+  number: HTMLElement;
+  text: string;
+}
+
 // Types for element data
 export interface ElementData {
   index: number;
@@ -27,13 +35,19 @@ declare global {
   interface Window {
     getClickableElements: () => Element[];
     highlightedElements: Array<HighlightedElement>;
+    highlightedTextBlocks: Array<HighlightedTextBlock>;
     elementObserver: IntersectionObserver;
+    textObserver: IntersectionObserver;
     updateHighlights: () => void;
     highlightClickableElement: (element: Element, index: number) => void;
+    highlightTextBlock: (element: Element, index: number) => void;
     processedElements: Set<Element>;
+    processedTextBlocks: Set<Element>;
     startObservingNewElements: () => void;
     _detectorOptions?: {
       focusOnConsent?: boolean;
+      includeFormInputs?: boolean;
+      highlightAllText?: boolean;
       [key: string]: any;
     };
   }

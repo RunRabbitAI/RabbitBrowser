@@ -16,6 +16,7 @@ export class SimpleRabbitBrowser {
   private browser: Browser | null = null;
   private page: Page | null = null;
   private elements: ElementData[] = [];
+  private textBlocks: any[] = [];
   private pageContext: any = null;
   private options: {
     focusOnConsent: boolean;
@@ -24,6 +25,8 @@ export class SimpleRabbitBrowser {
     earlyReturn: boolean;
     includePageContext: boolean;
     includeFormInputs: boolean;
+    includeTextBlocks: boolean;
+    highlightAllText: boolean;
   };
 
   /**
@@ -37,6 +40,8 @@ export class SimpleRabbitBrowser {
       earlyReturn?: boolean;
       includePageContext?: boolean;
       includeFormInputs?: boolean;
+      includeTextBlocks?: boolean;
+      highlightAllText?: boolean;
     } = {}
   ) {
     // Default options
@@ -47,6 +52,8 @@ export class SimpleRabbitBrowser {
       earlyReturn: options.earlyReturn ?? true,
       includePageContext: options.includePageContext ?? true,
       includeFormInputs: options.includeFormInputs ?? true,
+      includeTextBlocks: options.includeTextBlocks ?? true,
+      highlightAllText: options.highlightAllText ?? true,
     };
   }
 
@@ -69,6 +76,7 @@ export class SimpleRabbitBrowser {
 
       // Clear previous elements
       this.elements = [];
+      this.textBlocks = [];
       this.pageContext = null;
 
       // Navigate to URL
@@ -79,18 +87,21 @@ export class SimpleRabbitBrowser {
       await initializeElementDetector(this.page, {
         focusOnConsent: this.options.focusOnConsent,
         includeFormInputs: this.options.includeFormInputs,
+        highlightAllText: this.options.highlightAllText,
       });
 
       // Start detecting elements
       await this.page.evaluate(() => {
         window.processedElements = new Set();
+        window.processedTextBlocks = new Set();
         window.highlightedElements = window.highlightedElements || [];
+        window.highlightedTextBlocks = window.highlightedTextBlocks || [];
         window.startObservingNewElements();
       });
 
       // Log if enabled
       if (this.options.logDetails) {
-        log("Detecting interactive elements...");
+        log("Detecting interactive elements and text blocks...");
       }
 
       // Progressive checking for elements
@@ -104,15 +115,16 @@ export class SimpleRabbitBrowser {
         await new Promise((resolve) => setTimeout(resolve, interval));
         totalWaitTime += interval;
 
-        // Collect elements
+        // Collect elements and text blocks
         const data = await collectElementData(this.page);
         this.elements = data.elements;
+        this.textBlocks = data.textBlocks;
 
         // Early return if we found elements
         if (this.options.earlyReturn && this.elements.length > 0) {
           if (this.options.logDetails) {
             log(
-              `Found ${this.elements.length} elements after ${totalWaitTime}ms - returning early`
+              `Found ${this.elements.length} elements and ${this.textBlocks.length} text blocks after ${totalWaitTime}ms - returning early`
             );
           }
           break;
@@ -129,6 +141,7 @@ export class SimpleRabbitBrowser {
         await new Promise((resolve) => setTimeout(resolve, remainingTime));
         const data = await collectElementData(this.page);
         this.elements = data.elements;
+        this.textBlocks = data.textBlocks;
       }
 
       // Collect page context if requested
@@ -145,7 +158,9 @@ export class SimpleRabbitBrowser {
         if (this.elements.length === 0) {
           log("WARNING: No interactive elements were detected");
         } else {
-          log(`Detected ${this.elements.length} interactive elements`);
+          log(
+            `Detected ${this.elements.length} elements and ${this.textBlocks.length} text blocks`
+          );
         }
       }
     } catch (error) {
@@ -174,6 +189,14 @@ export class SimpleRabbitBrowser {
   }
 
   /**
+   * Get text blocks
+   * @returns Array of text blocks
+   */
+  getTextBlocks(): any[] {
+    return this.textBlocks;
+  }
+
+  /**
    * Get page context information including text content
    * @returns Page context object with text content
    */
@@ -185,9 +208,14 @@ export class SimpleRabbitBrowser {
    * Get complete data with both elements and page context
    * @returns Object containing elements and page context
    */
-  getCompleteData(): { elements: ElementData[]; pageContext: any } {
+  getCompleteData(): {
+    elements: ElementData[];
+    textBlocks: any[];
+    pageContext: any;
+  } {
     return {
       elements: this.elements,
+      textBlocks: this.textBlocks,
       pageContext: this.pageContext,
     };
   }

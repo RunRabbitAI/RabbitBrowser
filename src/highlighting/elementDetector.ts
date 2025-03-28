@@ -10,12 +10,14 @@ export async function initializeElementDetector(
   options: {
     focusOnConsent?: boolean;
     includeFormInputs?: boolean;
+    highlightAllText?: boolean;
   } = {}
 ): Promise<void> {
   // Default options
   const defaultOptions = {
     focusOnConsent: false, // By default, look for all interactive elements
     includeFormInputs: true, // By default, include form inputs
+    highlightAllText: true, // By default, highlight all text elements
   };
 
   const opts = { ...defaultOptions, ...options };
@@ -32,6 +34,7 @@ export async function initializeElementDetector(
     const detectorOptions = (window as any)._detectorOptions || {
       focusOnConsent: false,
       includeFormInputs: true,
+      highlightAllText: true,
     };
 
     // Logger function to communicate with Node.js

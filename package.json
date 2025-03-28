@@ -10,7 +10,9 @@
     "prepublishOnly": "npm run build",
     "example:simple": "ts-node src/examples/simple-usage.ts",
     "example:consent": "ts-node src/examples/consent-detection.ts",
-    "example:cdp": "ts-node src/examples/cdp-usage.ts"
+    "example:cdp": "ts-node src/examples/cdp-usage.ts",
+    "example:interactive": "ts-node src/examples/interaction-example.ts",
+    "example:form": "ts-node src/examples/form-filling-example.ts"
   },
   "keywords": [
     "puppeteer",

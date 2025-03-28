@@ -66,8 +66,12 @@ export class RabbitBrowser {
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
     this.page = await this.browser.newPage();
-    window.highlightedElements = window.highlightedElements || [];
-    window.highlightedTextBlocks = window.highlightedTextBlocks || [];
+
+    // Initialize window variables in browser context
+    await this.page.evaluate(() => {
+      window.highlightedElements = window.highlightedElements || [];
+      window.highlightedTextBlocks = window.highlightedTextBlocks || [];
+    });
   }
 
   /**
@@ -378,6 +382,411 @@ export class RabbitBrowser {
     return this.elements.filter(
       (element) => element.tagName.toLowerCase() === tagName.toLowerCase()
     );
+  }
+
+  /**
+   * Click on an element
+   * @param elementOrIndex The element data or index of the element to click
+   * @returns Promise resolving when the click is complete
+   */
+  async clickElement(elementOrIndex: ElementData | number): Promise<void> {
+    if (!this.page) {
+      throw new Error("Browser not initialized. Call go() first.");
+    }
+
+    // Get the element data
+    let element: ElementData;
+    if (typeof elementOrIndex === "number") {
+      if (elementOrIndex < 0 || elementOrIndex >= this.elements.length) {
+        throw new Error(
+          `Element index ${elementOrIndex} out of bounds (0-${
+            this.elements.length - 1
+          })`
+        );
+      }
+      element = this.elements[elementOrIndex];
+    } else {
+      element = elementOrIndex;
+    }
+
+    // Ensure the element is interactable
+    if (!element.interactable) {
+      console.warn(
+        `Warning: Element "${element.text}" (${element.tagName}) may not be interactable`
+      );
+    }
+
+    try {
+      if (!element.puppet?.selector) {
+        throw new Error("Element has no selector for interaction");
+      }
+
+      // Wait briefly for any navigation to complete
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Extract meaningful data to find the element directly
+      const elementText = element.text || "";
+      const elementId = element.id || "";
+      const elementType = element.type || "";
+      const tagName = element.tagName;
+      const selector = element.puppet.selector;
+      const href = element.href || "";
+
+      // Click the element - using a more robust approach that combines selector with attributes
+      await this.page.evaluate(
+        ({ selector, elementText, elementId, elementType, tagName, href }) => {
+          // First try to find by selector
+          const elements = Array.from(document.querySelectorAll(selector));
+
+          // If no elements found, try other approaches
+          if (elements.length === 0) {
+            // More detailed logging for debugging
+            console.log(`No elements found with selector: ${selector}`);
+            return;
+          }
+
+          // Try to find the exact element that matches our attributes
+          let targetElement = null;
+
+          for (const el of elements) {
+            // Look for attributes match (if they're provided)
+            const matchesId = elementId ? el.id === elementId : true;
+            const matchesType = elementType
+              ? (el as HTMLElement).getAttribute("type") === elementType
+              : true;
+            const matchesHref =
+              href && el instanceof HTMLAnchorElement ? el.href === href : true;
+            const hasMatchingText = elementText
+              ? el.textContent?.includes(elementText)
+              : true;
+
+            // If this element matches what we're looking for
+            if (matchesId && matchesType && matchesHref && hasMatchingText) {
+              targetElement = el as HTMLElement;
+              break;
+            }
+          }
+
+          // If we still didn't find a specific match, use the first element
+          if (!targetElement && elements.length > 0) {
+            targetElement = elements[0] as HTMLElement;
+          }
+
+          if (!targetElement) {
+            throw new Error(`Could not find element matching ${selector}`);
+          }
+
+          // Click the element
+          targetElement.click();
+        },
+        { selector, elementText, elementId, elementType, tagName, href }
+      );
+
+      // Log click for debugging
+      console.log(`Clicked ${element.tagName} element: "${element.text}"`);
+
+      // Wait for any navigation or network activity to settle
+      await this.page
+        .waitForNavigation({ waitUntil: "networkidle0", timeout: 5000 })
+        .catch(() => console.log("No navigation occurred after click"));
+    } catch (error) {
+      console.error(`Error clicking element: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Fill an input element with text
+   * @param elementOrIndex The element data or index of the input element to fill
+   * @param value The text value to fill in
+   * @returns Promise resolving when the input is filled
+   */
+  async fillInput(
+    elementOrIndex: ElementData | number,
+    value: string
+  ): Promise<void> {
+    if (!this.page) {
+      throw new Error("Browser not initialized. Call go() first.");
+    }
+
+    // Get the element data
+    let element: ElementData;
+    if (typeof elementOrIndex === "number") {
+      if (elementOrIndex < 0 || elementOrIndex >= this.elements.length) {
+        throw new Error(
+          `Element index ${elementOrIndex} out of bounds (0-${
+            this.elements.length - 1
+          })`
+        );
+      }
+      element = this.elements[elementOrIndex];
+    } else {
+      element = elementOrIndex;
+    }
+
+    // Ensure it's a form input
+    if (
+      !element.isFormInput &&
+      element.tagName !== "input" &&
+      element.tagName !== "textarea"
+    ) {
+      throw new Error(
+        `Element "${element.text}" (${element.tagName}) is not a form input`
+      );
+    }
+
+    try {
+      if (!element.puppet?.selector) {
+        throw new Error("Element has no selector for interaction");
+      }
+
+      // Extract meaningful data to find the element directly
+      const inputText = element.text || "";
+      const inputPlaceholder = element.placeholder || "";
+      const inputId = element.id || "";
+      const inputName = element.name || "";
+      const inputType = element.type || "";
+      const tagName = element.tagName;
+      const selector = element.puppet.selector;
+
+      // Fill the input - using a more robust approach that combines selector with attributes
+      await this.page.evaluate(
+        ({
+          selector,
+          inputText,
+          inputPlaceholder,
+          inputId,
+          inputName,
+          inputType,
+          tagName,
+          value,
+        }) => {
+          // First try to find by selector
+          const elements = Array.from(document.querySelectorAll(selector));
+
+          // If no elements found, try other approaches
+          if (elements.length === 0) {
+            // More detailed logging for debugging
+            console.log(`No elements found with selector: ${selector}`);
+            return;
+          }
+
+          // Try to find the exact element that matches our attributes
+          let targetElement = null;
+
+          for (const el of elements) {
+            // Cast to the right type
+            const inputEl = el as HTMLInputElement | HTMLTextAreaElement;
+
+            // Look for attributes match (if they're provided)
+            const matchesId = inputId ? inputEl.id === inputId : true;
+            const matchesName = inputName ? inputEl.name === inputName : true;
+            const matchesType = inputType
+              ? (inputEl as HTMLInputElement).type === inputType
+              : true;
+            const matchesPlaceholder = inputPlaceholder
+              ? inputEl.placeholder === inputPlaceholder
+              : true;
+
+            // If this element matches what we're looking for
+            if (matchesId && matchesName && matchesType && matchesPlaceholder) {
+              targetElement = inputEl;
+              break;
+            }
+          }
+
+          // If we still didn't find a specific match, use the first element
+          if (!targetElement && elements.length > 0) {
+            targetElement = elements[0] as
+              | HTMLInputElement
+              | HTMLTextAreaElement;
+          }
+
+          if (!targetElement) {
+            throw new Error(
+              `Could not find input element matching ${selector}`
+            );
+          }
+
+          // Clear the current value
+          targetElement.value = "";
+
+          // Focus and trigger input events
+          targetElement.focus();
+
+          // Set the new value
+          targetElement.value = value;
+
+          // Dispatch input and change events to trigger any listeners
+          targetElement.dispatchEvent(new Event("input", { bubbles: true }));
+          targetElement.dispatchEvent(new Event("change", { bubbles: true }));
+        },
+        {
+          selector,
+          inputText,
+          inputPlaceholder,
+          inputId,
+          inputName,
+          inputType,
+          tagName,
+          value,
+        }
+      );
+
+      // Log the action for debugging
+      console.log(`Filled ${element.tagName} element with "${value}"`);
+    } catch (error) {
+      console.error(`Error filling input: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Submit a form
+   * @param formElementOrIndex The form element data or index to submit
+   * @returns Promise resolving when the form is submitted
+   */
+  async submitForm(formElementOrIndex: ElementData | number): Promise<void> {
+    if (!this.page) {
+      throw new Error("Browser not initialized. Call go() first.");
+    }
+
+    // Get the element data
+    let element: ElementData;
+    if (typeof formElementOrIndex === "number") {
+      if (
+        formElementOrIndex < 0 ||
+        formElementOrIndex >= this.elements.length
+      ) {
+        throw new Error(
+          `Element index ${formElementOrIndex} out of bounds (0-${
+            this.elements.length - 1
+          })`
+        );
+      }
+      element = this.elements[formElementOrIndex];
+    } else {
+      element = formElementOrIndex;
+    }
+
+    // Validate that it's a form element
+    if (element.tagName !== "form") {
+      console.warn(
+        `Warning: Element is not a form but attempting to submit anyway`
+      );
+    }
+
+    try {
+      if (!element.puppet?.selector) {
+        throw new Error("Element has no selector for interaction");
+      }
+
+      // Get all matching elements and submit the form at the specified index
+      const selector = element.puppet.selector;
+      const index = element.puppet.index;
+
+      await this.page.evaluate(
+        ({ selector, index }) => {
+          const elements = document.querySelectorAll(selector);
+          if (elements.length <= index) {
+            throw new Error(
+              `Could not find element with selector ${selector} at index ${index}`
+            );
+          }
+
+          const form = elements[index] as HTMLFormElement;
+          form.submit();
+        },
+        { selector, index }
+      );
+
+      // Log the action for debugging
+      console.log(`Submitted form`);
+
+      // Wait for navigation to complete
+      await this.page
+        .waitForNavigation({ waitUntil: "networkidle0", timeout: 5000 })
+        .catch(() =>
+          console.log("No navigation occurred after form submission")
+        );
+    } catch (error) {
+      console.error(`Error submitting form: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Select an option in a dropdown
+   * @param selectElementOrIndex The select element data or index
+   * @param optionValue The value of the option to select
+   * @returns Promise resolving when the option is selected
+   */
+  async selectOption(
+    selectElementOrIndex: ElementData | number,
+    optionValue: string
+  ): Promise<void> {
+    if (!this.page) {
+      throw new Error("Browser not initialized. Call go() first.");
+    }
+
+    // Get the element data
+    let element: ElementData;
+    if (typeof selectElementOrIndex === "number") {
+      if (
+        selectElementOrIndex < 0 ||
+        selectElementOrIndex >= this.elements.length
+      ) {
+        throw new Error(
+          `Element index ${selectElementOrIndex} out of bounds (0-${
+            this.elements.length - 1
+          })`
+        );
+      }
+      element = this.elements[selectElementOrIndex];
+    } else {
+      element = selectElementOrIndex;
+    }
+
+    // Ensure it's a select input
+    if (element.tagName !== "select") {
+      throw new Error(
+        `Element "${element.text}" (${element.tagName}) is not a select element`
+      );
+    }
+
+    try {
+      if (!element.puppet?.selector) {
+        throw new Error("Element has no selector for interaction");
+      }
+
+      // Get all matching elements and select the option on the element at the specified index
+      const selector = element.puppet.selector;
+      const index = element.puppet.index;
+
+      await this.page.evaluate(
+        ({ selector, index, optionValue }) => {
+          const elements = document.querySelectorAll(selector);
+          if (elements.length <= index) {
+            throw new Error(
+              `Could not find element with selector ${selector} at index ${index}`
+            );
+          }
+
+          const selectElement = elements[index] as HTMLSelectElement;
+          selectElement.value = optionValue;
+
+          // Dispatch change event
+          selectElement.dispatchEvent(new Event("change", { bubbles: true }));
+        },
+        { selector, index, optionValue }
+      );
+
+      // Log the action for debugging
+      console.log(`Selected option "${optionValue}" in select element`);
+    } catch (error) {
+      console.error(`Error selecting option: ${error}`);
+      throw error;
+    }
   }
 
   /**

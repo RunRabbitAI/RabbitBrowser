@@ -34,8 +34,8 @@ async function detectConsentButtons() {
         text.includes("decline");
 
       const hasConsentClass =
-        (element.className?.includes("consent") ||
-          element.className?.includes("cookie")) ??
+        (element.attributes?.class?.includes("consent") ||
+          element.attributes?.class?.includes("cookie")) ??
         false;
 
       return hasConsentKeyword || hasConsentClass;

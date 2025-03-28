@@ -15,19 +15,26 @@ export interface HighlightedTextBlock {
 
 // Types for element data
 export interface ElementData {
-  index: number;
-  text: string;
-  immediateText?: string;
+  id?: string;
   tagName: string;
   type?: string;
-  id?: string;
-  className?: string;
+  text: string;
+  attributes?: Record<string, string>;
   href?: string;
-  value?: string;
-  attributes: Record<string, string>;
-  selector: string;
   isVisible: boolean;
   isClickable: boolean;
+  interactable?: boolean;
+  isFormInput?: boolean;
+  label?: string;
+  placeholder?: string;
+  name?: string;
+  required?: boolean;
+  checked?: boolean;
+  options?: Array<{ value: string; text: string; selected: boolean }>;
+  puppet?: {
+    selector: string;
+    index: number;
+  };
 }
 
 // Extend window interface
@@ -51,4 +58,22 @@ declare global {
       [key: string]: any;
     };
   }
+}
+
+export interface Options {
+  headless: boolean;
+  defaultViewport: {
+    width: number;
+    height: number;
+  };
+  highlightAllText: boolean;
+  focusOnConsent: boolean;
+  logDetails: boolean;
+  waitTime: number;
+  minElementsRequired: number;
+  earlyReturn: boolean;
+  includePageContext: boolean;
+  includeFormInputs: boolean;
+  includeTextBlocks: boolean;
+  preserveBrowserViewport: boolean;
 }

@@ -9,7 +9,8 @@
     "start": "ts-node src/index.ts",
     "prepublishOnly": "npm run build",
     "example:simple": "ts-node src/examples/simple-usage.ts",
-    "example:consent": "ts-node src/examples/consent-detection.ts"
+    "example:consent": "ts-node src/examples/consent-detection.ts",
+    "example:cdp": "ts-node src/examples/cdp-usage.ts"
   },
   "keywords": [
     "puppeteer",

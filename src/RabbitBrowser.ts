@@ -1,5 +1,6 @@
-import { Browser, Page } from "puppeteer";
-import { ElementData } from "./types/index";
+import { Browser, Page, CDPSession } from "puppeteer";
+import puppeteer from "puppeteer";
+import { ElementData, HighlightedTextBlock, Options } from "./types";
 import { log } from "./utils/logger";
 import { setupBrowser, setupPage, navigateTo } from "./browser/puppeteer";
 import { initializeElementDetector } from "./highlighting/elementDetector";
@@ -15,51 +16,34 @@ import {
 export class RabbitBrowser {
   private browser: Browser | null = null;
   private page: Page | null = null;
+  private cdpClient: any = null;
+  private cdpSession: CDPSession | null = null;
+  private isCDP: boolean = false;
   private initialized: boolean = false;
   private elements: ElementData[] = [];
   private textBlocks: any[] = [];
   private pageContext: any = null;
   private currentUrl: string = "";
-  private options: {
-    focusOnConsent: boolean;
-    logDetails: boolean;
-    waitTime: number;
-    minElementsRequired: number;
-    earlyReturn: boolean;
-    includePageContext: boolean;
-    includeFormInputs: boolean;
-    includeTextBlocks: boolean;
-    highlightAllText: boolean;
+  private options: Options = {
+    headless: true,
+    defaultViewport: { width: 1280, height: 800 },
+    highlightAllText: true,
+    focusOnConsent: false,
+    logDetails: false,
+    waitTime: 3000,
+    minElementsRequired: 1,
+    earlyReturn: true,
+    includePageContext: true,
+    includeFormInputs: true,
+    includeTextBlocks: true,
+    preserveBrowserViewport: false,
   };
 
   /**
    * Create a new RabbitBrowser instance
    */
-  constructor(
-    options: {
-      focusOnConsent?: boolean;
-      logDetails?: boolean;
-      waitTime?: number;
-      minElementsRequired?: number;
-      earlyReturn?: boolean;
-      includePageContext?: boolean;
-      includeFormInputs?: boolean;
-      includeTextBlocks?: boolean;
-      highlightAllText?: boolean;
-    } = {}
-  ) {
-    // Default options
-    this.options = {
-      focusOnConsent: options.focusOnConsent ?? false,
-      logDetails: options.logDetails ?? false,
-      waitTime: options.waitTime ?? 3000,
-      minElementsRequired: options.minElementsRequired ?? 1,
-      earlyReturn: options.earlyReturn ?? true,
-      includePageContext: options.includePageContext ?? true,
-      includeFormInputs: options.includeFormInputs ?? true,
-      includeTextBlocks: options.includeTextBlocks ?? true,
-      highlightAllText: options.highlightAllText ?? true,
-    };
+  constructor(options: Partial<Options> = {}) {
+    this.options = { ...this.options, ...options };
   }
 
   /**
@@ -70,6 +54,101 @@ export class RabbitBrowser {
       this.browser = await setupBrowser();
       this.initialized = true;
     }
+  }
+
+  /**
+   * Initialize browser and page
+   */
+  async init(): Promise<void> {
+    this.browser = await puppeteer.launch({
+      headless: this.options.headless ? ("new" as any) : false,
+      defaultViewport: this.options.defaultViewport,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    this.page = await this.browser.newPage();
+    window.highlightedElements = window.highlightedElements || [];
+    window.highlightedTextBlocks = window.highlightedTextBlocks || [];
+  }
+
+  /**
+   * Connect to an existing Chrome instance via CDP
+   * @param options CDP connection options
+   */
+  async connectCDP(
+    options: { browserWSEndpoint?: string; browserURL?: string } = {}
+  ): Promise<void> {
+    this.isCDP = true;
+
+    if (!options.browserWSEndpoint && !options.browserURL) {
+      // Default to connecting to Chrome on standard debugging port
+      options.browserURL = "http://127.0.0.1:9222";
+    }
+
+    // Connect to the browser
+    this.browser = await puppeteer.connect(options);
+
+    // Get the default page or create a new one
+    const pages = await this.browser.pages();
+    this.page = pages.length > 0 ? pages[0] : await this.browser.newPage();
+
+    // Create a CDP session for direct protocol access
+    this.cdpSession = await this.page.target().createCDPSession();
+
+    // If preserving viewport, get the actual browser viewport size
+    if (this.options.preserveBrowserViewport) {
+      try {
+        // Get the window size using CDP
+        const { windowId } = await this.cdpSession.send(
+          "Browser.getWindowForTarget"
+        );
+        const { bounds } = await this.cdpSession.send(
+          "Browser.getWindowBounds",
+          { windowId }
+        );
+
+        // Set the viewport to match the window size
+        if (bounds.width && bounds.height) {
+          await this.page.setViewport({
+            width: bounds.width,
+            height: bounds.height - 100, // Account for browser chrome/UI
+          });
+          console.log(
+            `Using browser window size: ${bounds.width}x${bounds.height}`
+          );
+        }
+      } catch (error) {
+        console.warn(
+          "Unable to get browser window size, using default viewport"
+        );
+      }
+    }
+
+    console.log("Connected to Chrome via CDP");
+  }
+
+  /**
+   * Execute JavaScript in the page context via CDP
+   * @param script JavaScript code to execute
+   * @returns Result of the script execution
+   */
+  async evaluateWithCDP(script: string): Promise<any> {
+    if (!this.cdpSession) {
+      throw new Error("CDP session not initialized");
+    }
+
+    const result = await this.cdpSession.send("Runtime.evaluate", {
+      expression: script,
+      returnByValue: true,
+      awaitPromise: true,
+    });
+
+    if (result.exceptionDetails) {
+      throw new Error(
+        `Script evaluation failed: ${result.exceptionDetails.text}`
+      );
+    }
+
+    return result.result.value;
   }
 
   /**
@@ -251,6 +330,18 @@ export class RabbitBrowser {
   }
 
   /**
+   * Get the current URL from the page using CDP
+   * @returns The current URL
+   */
+  async getCurrentPageUrl(): Promise<string> {
+    if (!this.page) {
+      throw new Error("Browser not initialized or not connected via CDP");
+    }
+
+    return await this.page.evaluate(() => window.location.href);
+  }
+
+  /**
    * Get the current URL
    * @returns The current URL
    */
@@ -305,12 +396,18 @@ export class RabbitBrowser {
    * Close the browser
    */
   async close(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-      this.page = null;
-      this.initialized = false;
+    if (this.isCDP) {
+      // For CDP, just disconnect without closing the browser
+      if (this.browser) await this.browser.disconnect();
+    } else {
+      // For regular Puppeteer, close the browser
+      if (this.browser) await this.browser.close();
     }
+
+    this.browser = null;
+    this.page = null;
+    this.cdpSession = null;
+    this.initialized = false;
   }
 
   /**
@@ -323,3 +420,29 @@ export class RabbitBrowser {
 
 // Export a pre-configured instance for quick use
 export const rabbitBrowser = new RabbitBrowser();
+
+// Add types to window object for TypeScript
+declare global {
+  interface Window {
+    highlightedElements: Array<{
+      element: Element;
+      highlight: HTMLElement;
+      number: HTMLElement;
+    }>;
+    highlightedTextBlocks: Array<{
+      element: Element;
+      highlight: HTMLElement;
+      number: HTMLElement;
+      text: string;
+    }>;
+    processedElements: Set<Element>;
+    processedTextBlocks: Set<Element>;
+    elementObserver: IntersectionObserver;
+    textObserver: IntersectionObserver;
+    updateHighlights: () => void;
+    highlightClickableElement: (element: Element, index: number) => void;
+    highlightTextBlock: (element: Element, index: number) => void;
+    startObservingNewElements: () => void;
+    getClickableElements: () => Element[];
+  }
+}
